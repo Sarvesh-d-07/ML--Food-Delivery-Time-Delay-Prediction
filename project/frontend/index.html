@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Food Delivery Delay Predictor</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <main class="page">
+    <section class="hero-card">
+      <header class="topbar">
+        <div class="brand-dot"></div>
+        <p class="brand">Food Delivery Delay Predictor</p>
+      </header>
+
+      <div class="hero-content">
+        <h1>Predict Delivery Delays in One Click</h1>
+        <p class="subtitle">Modern ML-powered estimate based on distance, prep time, traffic, weather, and peak hour.</p>
+      </div>
+
+      <div class="predict-panel">
+        <form id="predictForm" class="form-grid">
+          <div class="field">
+            <label for="distance">Distance (km)</label>
+            <input type="number" id="distance" min="0" step="0.1" placeholder="e.g. 8.5" required />
+          </div>
+
+          <div class="field">
+            <label for="prep_time">Preparation Time (minutes)</label>
+            <input type="number" id="prep_time" min="0" step="1" placeholder="e.g. 18" required />
+          </div>
+
+          <div class="field">
+            <label for="traffic">Traffic Level</label>
+            <select id="traffic" required>
+              <option value="Low">Low</option>
+              <option value="Medium" selected>Medium</option>
+              <option value="High">High</option>
+            </select>
+          </div>
+
+          <div class="field">
+            <label for="weather">Weather</label>
+            <select id="weather" required>
+              <option value="Clear" selected>Clear</option>
+              <option value="Rainy">Rainy</option>
+            </select>
+          </div>
+
+          <div class="field">
+            <label for="peak_hour">Peak Hour</label>
+            <select id="peak_hour" required>
+              <option value="No" selected>No</option>
+              <option value="Yes">Yes</option>
+            </select>
+          </div>
+
+          <button type="submit" id="submitBtn">Predict Now</button>
+        </form>
+
+        <div id="loading" class="status loading hidden">Predicting with model...</div>
+        <div id="result" class="status hidden"></div>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const form = document.getElementById('predictForm');
+    const resultEl = document.getElementById('result');
+    const loadingEl = document.getElementById('loading');
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+
+      const payload = {
+        distance: Number(document.getElementById('distance').value),
+        prep_time: Number(document.getElementById('prep_time').value),
+        traffic: document.getElementById('traffic').value,
+        weather: document.getElementById('weather').value,
+        peak_hour: document.getElementById('peak_hour').value,
+      };
+
+      if (payload.distance < 0 || payload.prep_time < 0) {
+        showResult('Please enter non-negative values.', 'error');
+        return;
+      }
+
+      loadingEl.classList.remove('hidden');
+      resultEl.classList.add('hidden');
+
+      try {
+        const res = await fetch('http://localhost:3000/predict', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Prediction failed');
+
+        const percent = (data.probability_delayed * 100).toFixed(2);
+        const isDelayed = data.prediction === 1;
+        showResult(`${data.label} • Delay probability: ${percent}%`, isDelayed ? 'delayed' : 'ontime');
+      } catch (err) {
+        showResult(`Error: ${err.message}`, 'error');
+      } finally {
+        loadingEl.classList.add('hidden');
+      }
+    });
+
+    function showResult(message, type) {
+      resultEl.textContent = message;
+      resultEl.className = 'status';
+      resultEl.classList.add(type);
+      resultEl.classList.remove('hidden');
+    }
+  </script>
+</body>
+</html>
