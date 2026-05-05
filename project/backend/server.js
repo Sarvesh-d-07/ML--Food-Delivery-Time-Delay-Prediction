@@ -1,10 +1,3 @@
-/**
- * Beginner-friendly Express backend.
- *
- * Flow:
- * Frontend -> Node/Express (/predict) -> Flask API (/predict) -> Frontend response
- */
-
 const express = require('express');
 const cors = require('cors');
 
@@ -21,23 +14,21 @@ app.get('/', (req, res) => {
 
 app.post('/predict', async (req, res) => {
   try {
-    const { distance, prep_time, traffic, weather, peak_hour } = req.body;
+    const required = [
+      'timestamp', 'item_count', 'user_lat', 'user_long', 'venue_lat', 'venue_long',
+      'estimated_delivery_minutes', 'cloud_coverage', 'temperature', 'wind_speed', 'precipitation'
+    ];
 
-    // Very simple validation
-    if (
-      distance === undefined ||
-      prep_time === undefined ||
-      !traffic ||
-      !weather ||
-      !peak_hour
-    ) {
-      return res.status(400).json({ error: 'Missing required fields.' });
+    for (const key of required) {
+      if (req.body[key] === undefined || req.body[key] === null || req.body[key] === '') {
+        return res.status(400).json({ error: `Missing required field: ${key}` });
+      }
     }
 
     const flaskResponse = await fetch(FLASK_API_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ distance, prep_time, traffic, weather, peak_hour }),
+      body: JSON.stringify(req.body),
     });
 
     const data = await flaskResponse.json();
