@@ -15,46 +15,23 @@
       </header>
 
       <div class="hero-content">
-        <h1>Predict Delivery Delays in One Click</h1>
-        <p class="subtitle">Modern ML-powered estimate based on distance, prep time, traffic, weather, and peak hour.</p>
+        <h1>Predict Delay Minutes from Real Order Data</h1>
+        <p class="subtitle">Model trained on orders_autumn_2020.csv with location, weather, timestamp, and order-level features.</p>
       </div>
 
       <div class="predict-panel">
         <form id="predictForm" class="form-grid">
-          <div class="field">
-            <label for="distance">Distance (km)</label>
-            <input type="number" id="distance" min="0" step="0.1" placeholder="e.g. 8.5" required />
-          </div>
-
-          <div class="field">
-            <label for="prep_time">Preparation Time (minutes)</label>
-            <input type="number" id="prep_time" min="0" step="1" placeholder="e.g. 18" required />
-          </div>
-
-          <div class="field">
-            <label for="traffic">Traffic Level</label>
-            <select id="traffic" required>
-              <option value="Low">Low</option>
-              <option value="Medium" selected>Medium</option>
-              <option value="High">High</option>
-            </select>
-          </div>
-
-          <div class="field">
-            <label for="weather">Weather</label>
-            <select id="weather" required>
-              <option value="Clear" selected>Clear</option>
-              <option value="Rainy">Rainy</option>
-            </select>
-          </div>
-
-          <div class="field">
-            <label for="peak_hour">Peak Hour</label>
-            <select id="peak_hour" required>
-              <option value="No" selected>No</option>
-              <option value="Yes">Yes</option>
-            </select>
-          </div>
+          <div class="field"><label for="timestamp">Timestamp</label><input type="datetime-local" id="timestamp" required /></div>
+          <div class="field"><label for="item_count">Item Count</label><input type="number" id="item_count" min="1" step="1" required /></div>
+          <div class="field"><label for="user_lat">User Latitude</label><input type="number" id="user_lat" step="0.0001" required /></div>
+          <div class="field"><label for="user_long">User Longitude</label><input type="number" id="user_long" step="0.0001" required /></div>
+          <div class="field"><label for="venue_lat">Venue Latitude</label><input type="number" id="venue_lat" step="0.0001" required /></div>
+          <div class="field"><label for="venue_long">Venue Longitude</label><input type="number" id="venue_long" step="0.0001" required /></div>
+          <div class="field"><label for="estimated_delivery_minutes">Estimated Delivery Minutes</label><input type="number" id="estimated_delivery_minutes" min="1" step="1" required /></div>
+          <div class="field"><label for="cloud_coverage">Cloud Coverage</label><input type="number" id="cloud_coverage" min="0" step="1" required /></div>
+          <div class="field"><label for="temperature">Temperature</label><input type="number" id="temperature" step="0.1" required /></div>
+          <div class="field"><label for="wind_speed">Wind Speed</label><input type="number" id="wind_speed" step="0.00001" required /></div>
+          <div class="field"><label for="precipitation">Precipitation</label><input type="number" id="precipitation" min="0" step="0.001" required /></div>
 
           <button type="submit" id="submitBtn">Predict Now</button>
         </form>
@@ -74,17 +51,18 @@
       e.preventDefault();
 
       const payload = {
-        distance: Number(document.getElementById('distance').value),
-        prep_time: Number(document.getElementById('prep_time').value),
-        traffic: document.getElementById('traffic').value,
-        weather: document.getElementById('weather').value,
-        peak_hour: document.getElementById('peak_hour').value,
+        timestamp: new Date(document.getElementById('timestamp').value).toISOString().replace('T', ' ').replace('Z', ''),
+        item_count: Number(document.getElementById('item_count').value),
+        user_lat: Number(document.getElementById('user_lat').value),
+        user_long: Number(document.getElementById('user_long').value),
+        venue_lat: Number(document.getElementById('venue_lat').value),
+        venue_long: Number(document.getElementById('venue_long').value),
+        estimated_delivery_minutes: Number(document.getElementById('estimated_delivery_minutes').value),
+        cloud_coverage: Number(document.getElementById('cloud_coverage').value),
+        temperature: Number(document.getElementById('temperature').value),
+        wind_speed: Number(document.getElementById('wind_speed').value),
+        precipitation: Number(document.getElementById('precipitation').value),
       };
-
-      if (payload.distance < 0 || payload.prep_time < 0) {
-        showResult('Please enter non-negative values.', 'error');
-        return;
-      }
 
       loadingEl.classList.remove('hidden');
       resultEl.classList.add('hidden');
@@ -99,9 +77,10 @@
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || 'Prediction failed');
 
-        const percent = (data.probability_delayed * 100).toFixed(2);
-        const isDelayed = data.prediction === 1;
-        showResult(`${data.label} • Delay probability: ${percent}%`, isDelayed ? 'delayed' : 'ontime');
+        showResult(
+          `${data.status} • Predicted delay: ${data.predicted_delay_minutes} min • Predicted actual time: ${data.predicted_actual_delivery_minutes} min`,
+          data.predicted_delay_minutes > 0 ? 'delayed' : 'ontime'
+        );
       } catch (err) {
         showResult(`Error: ${err.message}`, 'error');
       } finally {

@@ -1,92 +1,47 @@
-# Food Delivery Time Delay Predictor (Beginner-Friendly)
+# Food Delivery Time Delay Predictor
 
-This mini-project predicts whether a food delivery will be **Delayed** or **On Time**.
+This project now trains on the real dataset `orders_autumn_2020.csv` (about 18k rows) and predicts **delay minutes**.
 
-## Tech Stack
-- Frontend: HTML + CSS + Vanilla JavaScript
-- Backend: Node.js + Express
-- ML API: Python + Flask + scikit-learn (Random Forest)
+## What changed
+- Model switched from synthetic classification to real-data regression.
+- Input fields now match your CSV columns.
+- Output now returns:
+  - predicted delay minutes
+  - predicted actual delivery minutes
+  - status (Delayed / Earlier than estimate)
 
-## Folder Structure
+## Train and run
 
-```text
-/project
-  /frontend
-    index.html
-    style.css
-  /backend
-    server.js
-    package.json
-  /model
-    train_model.py
-    model.pkl
-    scaler.pkl
-```
-
-## 1) Install dependencies
-
-### Python side
+### 1) Python dependencies
 ```bash
 cd project/model
 python -m venv .venv
-source .venv/bin/activate   # Windows: .venv\Scripts\activate
+source .venv/bin/activate
 pip install flask scikit-learn pandas numpy
 ```
 
-### Node side
+### 2) Node dependencies
 ```bash
 cd ../backend
 npm install
 ```
 
-## 2) Train model
-
+### 3) Train model
 ```bash
 cd ../model
 python train_model.py --train
 ```
 
-This creates:
-- `model.pkl`
-- `scaler.pkl`
-
-## 3) Run Flask ML API
-
+### 4) Start APIs
 ```bash
 python train_model.py --serve
 ```
 
-Flask runs at: `http://localhost:5001`
-
-## 4) Run Node backend
-
-Open a second terminal:
-
+In another terminal:
 ```bash
 cd project/backend
 npm start
 ```
 
-Node runs at: `http://localhost:3000`
-
-## 5) Open frontend
-
-Open `project/frontend/index.html` in your browser.
-
-Then submit the form:
-
-Frontend -> Node `/predict` -> Flask `/predict` -> ML model -> response.
-
-## API example
-
-POST `http://localhost:3000/predict`
-
-```json
-{
-  "distance": 8.5,
-  "prep_time": 18,
-  "traffic": "Medium",
-  "weather": "Clear",
-  "peak_hour": "No"
-}
-```
+### 5) Frontend
+Open `project/frontend/index.html` and submit values.
