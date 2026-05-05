@@ -37,7 +37,7 @@
         </form>
 
         <div id="loading" class="status loading hidden">Predicting with model...</div>
-        <div id="result" class="status hidden"></div>
+        <div id="result" class="status result-card hidden"></div>
       </div>
     </section>
   </main>
@@ -77,22 +77,155 @@
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || 'Prediction failed');
 
-        showResult(
-          `${data.status} • Predicted delay: ${data.predicted_delay_minutes} min • Predicted actual time: ${data.predicted_actual_delivery_minutes} min`,
-          data.predicted_delay_minutes > 0 ? 'delayed' : 'ontime'
-        );
+        renderResultCard(data, payload);
       } catch (err) {
-        showResult(`Error: ${err.message}`, 'error');
+        showError(`Error: ${err.message}`);
       } finally {
         loadingEl.classList.add('hidden');
       }
     });
 
-    function showResult(message, type) {
-      resultEl.textContent = message;
-      resultEl.className = 'status';
-      resultEl.classList.add(type);
+    function renderResultCard(data, payload) {
+      const isDelayed = data.predicted_delay_minutes > 0;
+      const delayProbability = getDelayProbability(payload, data.predicted_delay_minutes);
+      const topFactors = getTopFactors(payload, data.predicted_delay_minutes);
+      const distanceKm = getApproxDistanceKm(payload.user_lat, payload.user_long, payload.venue_lat, payload.venue_long);
+      const distanceCategory = getDistanceCategory(distanceKm);
+      const trafficLevel = getTrafficLevel(payload.timestamp);
+      const weatherLabel = getWeatherLabel(payload.precipitation, payload.cloud_coverage);
+      const riskLevel = getRiskLevel(delayProbability);
+
+      resultEl.className = 'status result-card';
+      resultEl.classList.add(isDelayed ? 'delayed' : 'ontime');
+      resultEl.innerHTML = `
+        <div class="result-header">
+          <h3>Prediction Result</h3>
+          <span class="badge ${isDelayed ? 'badge-delayed' : 'badge-ontime'}">${isDelayed ? 'Delayed' : 'On Time'}</span>
+        </div>
+
+        <div class="metrics-grid">
+          <div class="metric">
+            <p class="metric-label">Prediction</p>
+            <p class="metric-value">${isDelayed ? 'Delayed' : 'On Time'}</p>
+          </div>
+          <div class="metric">
+            <p class="metric-label">Predicted Delay Minutes</p>
+            <p class="metric-value">${Math.round(data.predicted_delay_minutes)} min</p>
+          </div>
+          <div class="metric">
+            <p class="metric-label">Predicted Actual Delivery Time</p>
+            <p class="metric-value">${Math.round(data.predicted_actual_delivery_minutes)} min</p>
+          </div>
+        </div>
+
+        <div class="probability-box">
+          <div class="probability-head">
+            <span>Delay Probability</span>
+            <strong>${delayProbability}%</strong>
+          </div>
+          <div class="progress-track">
+            <div class="progress-fill ${getProbabilityClass(delayProbability)}" style="width: ${delayProbability}%;"></div>
+          </div>
+        </div>
+
+        <div class="result-sections">
+          <div class="section-card">
+            <h4>Top Factors</h4>
+            <ul>
+              ${topFactors.map((factor) => `<li>${factor}</li>`).join('')}
+            </ul>
+          </div>
+
+          <div class="section-card">
+            <h4>Order Summary</h4>
+            <div class="summary-grid">
+              <p><span>Distance Category</span><strong>${distanceCategory}</strong></p>
+              <p><span>Traffic Level</span><strong>${trafficLevel}</strong></p>
+              <p><span>Weather</span><strong>${weatherLabel}</strong></p>
+              <p><span>Risk Level</span><strong>${riskLevel}</strong></p>
+            </div>
+          </div>
+        </div>
+      `;
+
       resultEl.classList.remove('hidden');
+    }
+
+    function showError(message) {
+      resultEl.textContent = message;
+      resultEl.className = 'status error';
+      resultEl.classList.remove('hidden');
+    }
+
+    function getDelayProbability(payload, predictedDelay) {
+      let score = predictedDelay > 0 ? 50 : 20;
+      const distanceKm = getApproxDistanceKm(payload.user_lat, payload.user_long, payload.venue_lat, payload.venue_long);
+
+      if (distanceKm > 8) score += 18;
+      else if (distanceKm > 4) score += 10;
+
+      if (payload.precipitation > 1) score += 16;
+      else if (payload.precipitation > 0.2) score += 8;
+
+      if (payload.cloud_coverage > 80) score += 7;
+      if (payload.item_count > 6) score += 8;
+
+      const hour = new Date(payload.timestamp.replace(' ', 'T')).getHours();
+      if ((hour >= 12 && hour <= 14) || (hour >= 19 && hour <= 22)) score += 15;
+
+      return Math.max(5, Math.min(95, Math.round(score)));
+    }
+
+    function getTopFactors(payload, predictedDelay) {
+      const factors = [];
+      const distanceKm = getApproxDistanceKm(payload.user_lat, payload.user_long, payload.venue_lat, payload.venue_long);
+      const hour = new Date(payload.timestamp.replace(' ', 'T')).getHours();
+
+      if (distanceKm > 8) factors.push('Long delivery distance');
+      if ((hour >= 12 && hour <= 14) || (hour >= 19 && hour <= 22)) factors.push('Peak hour traffic');
+      if (payload.precipitation > 0.2) factors.push('Rainy weather conditions');
+      if (payload.item_count > 6) factors.push('Large order size');
+      if (predictedDelay > 0 && payload.cloud_coverage > 75) factors.push('High cloud coverage');
+
+      if (factors.length < 2) factors.push('Normal traffic conditions', 'Stable weather');
+      return factors.slice(0, 3);
+    }
+
+    function getApproxDistanceKm(lat1, lon1, lat2, lon2) {
+      const latDiff = lat1 - lat2;
+      const lonDiff = lon1 - lon2;
+      return Math.sqrt(latDiff * latDiff + lonDiff * lonDiff) * 111;
+    }
+
+    function getDistanceCategory(distanceKm) {
+      if (distanceKm > 8) return 'High';
+      if (distanceKm > 4) return 'Medium';
+      return 'Low';
+    }
+
+    function getTrafficLevel(timestamp) {
+      const hour = new Date(timestamp.replace(' ', 'T')).getHours();
+      if ((hour >= 12 && hour <= 14) || (hour >= 19 && hour <= 22)) return 'High';
+      if ((hour >= 10 && hour <= 11) || (hour >= 15 && hour <= 18)) return 'Medium';
+      return 'Low';
+    }
+
+    function getWeatherLabel(precipitation, cloudCoverage) {
+      if (precipitation > 1) return 'Rainy';
+      if (precipitation > 0.2 || cloudCoverage > 80) return 'Cloudy';
+      return 'Clear';
+    }
+
+    function getRiskLevel(probability) {
+      if (probability >= 70) return 'High';
+      if (probability >= 40) return 'Medium';
+      return 'Low';
+    }
+
+    function getProbabilityClass(probability) {
+      if (probability >= 70) return 'risk-high';
+      if (probability >= 40) return 'risk-medium';
+      return 'risk-low';
     }
   </script>
 </body>
